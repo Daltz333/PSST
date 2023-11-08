@@ -25,7 +25,7 @@ int main(int argc, char *argv[])
     }
     
     echoServPort = atoi(argv[1]);  /* First arg:  local port */
-    
+
     /* Create socket for sending/receiving datagrams */
     if ((sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
         DieWithError("socket() failed");
@@ -45,6 +45,8 @@ int main(int argc, char *argv[])
         /* Set the size of the in-out parameter */
         cliAddrLen = sizeof(echoClntAddr);
         
+        printf("Waiting for message from client...\n");
+
         /* Block until receive message from a client */
         if ((recvMsgSize = recvfrom(sock, echoBuffer, ECHOMAX, 0,
                                     (struct sockaddr *) &echoClntAddr, &cliAddrLen)) < 0)

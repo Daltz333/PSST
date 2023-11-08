@@ -49,9 +49,13 @@ int main(int argc, char *argv[])
     echoServAddr.sin_port   = htons(echoServPort);     /* Server port */
     
     /* Send the string to the server */
-    if (sendto(sock, echoString, echoStringLen, 0, (struct sockaddr *)
-               &echoServAddr, sizeof(echoServAddr)) != echoStringLen)
-        DieWithError("sendto() sent a different number of bytes than expected");
+
+    int sentBytes = sendto(sock, echoString, echoStringLen, 0, (struct sockaddr *) &echoServAddr, sizeof(echoServAddr));
+    if (sentBytes != echoStringLen)
+    {
+        fprintf(stderr, "Expected %d but sent %d\n", echoStringLen, sentBytes);
+        DieWithError("sendto() sent a different number of bytes than expected\n");
+    }
     
     /* Recv a response */
     fromSize = sizeof(fromAddr);
