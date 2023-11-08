@@ -30,6 +30,7 @@ make all
 ### Targets
 
 - `make auth` - Builds the 2FA authentication server
+- `make auth_mgmt` - Builds the client for registering users on the 2FA server
 - `make mailbox` - Builds the mailbox server for storing messages
 - `make psst` - Builds the client
 - `make all` - Builds all of the above
@@ -40,6 +41,7 @@ make all
 The project is composed of four directories under `src`. 
 
 - `auth` - code specific to the auth server
+- `auth_mgmt` code specific to auth management client
 - `mailbox` - code specific to the mailbox server
 - `psst` - code specific to the client program
 - `shared` - shared code that should be duplicated among targets
