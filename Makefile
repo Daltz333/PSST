@@ -1,6 +1,6 @@
 # Define compiler and flags
 CC = gcc
-CFLAGS = -Wall -Wformat=2
+CFLAGS = -Wall -Wformat=2 -fsanitize=address
 
 # Directories
 SRC_DIR = src
@@ -45,6 +45,9 @@ $(OBJ_DIR)/%.o: $(MAILBOX_DIR)/%.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 $(OBJ_DIR)/%.o: $(AUTH_DIR)/%.c | $(OBJ_DIR)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+$(OBJ_DIR)/%.o: $(AUTH_MGMT_DIR)/%.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 $(OBJ_DIR)/%.o: $(PSST_DIR)/%.c | $(OBJ_DIR)

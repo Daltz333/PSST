@@ -5,6 +5,7 @@
 #include <string.h>     /* for memset() */
 #include <unistd.h>     /* for close() */
 #include "../shared/DieWithError.h"
+#include "../shared/Messages.h"
 
 #define ECHOMAX 255     /* Longest string to echo */
 
@@ -17,7 +18,10 @@ int main(int argc, char *argv[])
     char echoBuffer[ECHOMAX];        /* Buffer for echo string */
     unsigned short echoServPort;     /* Server port */
     int recvMsgSize;                 /* Size of received message */
-    
+    struct PsstMailboxMessage* recMessage;
+
+    recMessage = malloc(sizeof(recMessage));
+
     if (argc != 2)         /* Test for correct number of parameters */
     {
         fprintf(stderr,"Usage:  %s <UDP SERVER PORT>\n", argv[0]);
@@ -48,12 +52,12 @@ int main(int argc, char *argv[])
         printf("Waiting for message from client...\n");
 
         /* Block until receive message from a client */
-        if ((recvMsgSize = recvfrom(sock, echoBuffer, ECHOMAX, 0,
+        if ((recvMsgSize = recvfrom(sock, recMessage, sizeof(recMessage), 0,
                                     (struct sockaddr *) &echoClntAddr, &cliAddrLen)) < 0)
             DieWithError("recvfrom() failed");
         
         printf("Handling client %s\n", inet_ntoa(echoClntAddr.sin_addr));
-        
+        printf("")
         /* Send received datagram back to the client */
         if (sendto(sock, echoBuffer, recvMsgSize, 0,
                    (struct sockaddr *) &echoClntAddr, sizeof(echoClntAddr)) != recvMsgSize)
