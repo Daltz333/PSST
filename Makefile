@@ -30,16 +30,16 @@ PSST_OBJ = $(patsubst $(PSST_DIR)/%.c, $(OBJ_DIR)/%.o, $(PSST_SRC))
 all: mailbox psst auth auth_mgmt
 
 mailbox: $(MAILBOX_OBJ) | $(BIN_DIR)
-	$(CC) $(CFLAGS) -o $(BIN_DIR)/$@ $^
+	$(CC) $(CFLAGS) -o $(BIN_DIR)/$@ -lm $^
 
 psst: $(PSST_OBJ) | $(BIN_DIR)
-	$(CC) $(CFLAGS) -o $(BIN_DIR)/$@ $^
+	$(CC) $(CFLAGS) -o $(BIN_DIR)/$@ -lm $^
 
 auth: $(AUTH_OBJ) | $(BIN_DIR)
-	$(CC) $(CFLAGS) -o $(BIN_DIR)/$@ $^
+	$(CC) $(CFLAGS) -o $(BIN_DIR)/$@ -lm $^
 
 auth_mgmt: $(AUTH_MGMT_OBJ) | $(BIN_DIR)
-	$(CC) $(CFLAGS) -o $(BIN_DIR)/$@ $^
+	$(CC) $(CFLAGS) -o $(BIN_DIR)/$@ -lm $^
 
 $(OBJ_DIR)/%.o: $(MAILBOX_DIR)/%.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c -o $@ $<

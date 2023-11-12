@@ -39,17 +39,8 @@ int main(int argc, char *argv[])
     
     servIP = argv[1];           /* First arg: server IP address (dotted quad) */
 
-    char prv_key[100];
-    printf("\nPlease enter a private key: ");
-    if (fgets(prv_key, sizeof(prv_key), stdin) == NULL) 
-    {
-        DieWithError("Invalid private key entered.");
-    }
-
-    sscanf(prv_key, "%u", &private_key);
-
     char pub_key[100];
-    printf("\nPlease enter a public key: ");
+    printf("\nPlease enter a public key (e) for n = 221 (e.g. 23): ");
     if (fgets(pub_key, sizeof(pub_key), stdin) == NULL) 
     {
         DieWithError("Invalid public key entered.");
@@ -57,7 +48,26 @@ int main(int argc, char *argv[])
 
     sscanf(pub_key, "%u", &public_key);
 
+    /* Generate private key given public key (e) */
+    printf("Generating private key...\n");
+
+    // all clients share the same factor, so not very secure
+    // but this is fine for this project
+    private_key = getPrivKey(public_key, 13, 17);
+
+    printf("Generated private key: %i\n", private_key);
+
     char senderId[100];
+
+    int time = getTimestamp();
+    printf("Unencrypted time:  %i\n", time);
+
+    long long int encryptedTime = encrypt(time, private_key);
+    printf("Encrypted time: %lli\n", encryptedTime);
+
+    long long int decryptedTime = decrypt(encryptedTime, public_key);
+    printf("Descrypted time: %lli\n", decryptedTime);
+
     printf("\nPlease enter your ID: ");
     if (fgets(senderId, sizeof(senderId), stdin) == NULL) 
     {

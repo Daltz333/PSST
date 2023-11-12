@@ -6,7 +6,6 @@
 */
 void DieWithError(char *errorMessage)
 {
-	printf("totally a test");
 	perror(errorMessage);
 	exit(1);
 }
