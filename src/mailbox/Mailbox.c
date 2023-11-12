@@ -18,17 +18,11 @@ int main(int argc, char *argv[])
     char echoBuffer[ECHOMAX];        /* Buffer for echo string */
     unsigned short echoServPort;     /* Server port */
     int recvMsgSize;                 /* Size of received message */
-    struct PsstMailboxMessage* recMessage;
-
-    recMessage = malloc(sizeof(recMessage));
-
-    if (argc != 2)         /* Test for correct number of parameters */
-    {
-        fprintf(stderr,"Usage:  %s <UDP SERVER PORT>\n", argv[0]);
-        exit(1);
-    }
+    PsstMailboxMessage* recMessage;
     
-    echoServPort = atoi(argv[1]);  /* First arg:  local port */
+    recMessage = (PsstMailboxMessage*)malloc(sizeof(PsstMailboxMessage));
+
+    echoServPort = 8000;
 
     /* Create socket for sending/receiving datagrams */
     if ((sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
@@ -52,12 +46,12 @@ int main(int argc, char *argv[])
         printf("Waiting for message from client...\n");
 
         /* Block until receive message from a client */
-        if ((recvMsgSize = recvfrom(sock, recMessage, sizeof(recMessage), 0,
+        if ((recvMsgSize = recvfrom(sock, recMessage, sizeof(*recMessage), 0,
                                     (struct sockaddr *) &echoClntAddr, &cliAddrLen)) < 0)
             DieWithError("recvfrom() failed");
         
         printf("Handling client %s\n", inet_ntoa(echoClntAddr.sin_addr));
-        printf("")
+        printf("Sender ID is: %d\n", recMessage->user_id);
         /* Send received datagram back to the client */
         if (sendto(sock, echoBuffer, recvMsgSize, 0,
                    (struct sockaddr *) &echoClntAddr, sizeof(echoClntAddr)) != recvMsgSize)

@@ -1,6 +1,6 @@
 # Define compiler and flags
 CC = gcc
-CFLAGS = -Wall -Wformat=2 -fsanitize=address
+CFLAGS = -Wall -g -Wformat=2 -fsanitize=address
 
 # Directories
 SRC_DIR = src

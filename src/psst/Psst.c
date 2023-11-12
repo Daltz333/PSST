@@ -6,9 +6,11 @@
 #include <unistd.h>     /* for close() */
 #include <stdio.h>      /* for console input */
 #include <time.h>       /* for system time */
+#include <stdlib.h>     /* for string manip */
 #include "../shared/DieWithError.h"
 #include "../shared/Messages.h"
 #include "../shared/MessageUtil.h"
+#include "Psst.h"
 
 #define ECHOMAX 255     /* Longest string to echo */
 
@@ -16,16 +18,16 @@ int main(int argc, char *argv[])
 {
     int sock;                               /* Socket descriptor */
     struct sockaddr_in echoServAddr;        /* Echo server address */
-    struct sockaddr_in fromAddr;            /* Source address of echo */
     unsigned short echoServPort = 8000;            /* Echo server port */
-    unsigned int fromSize;                  /* In-out of address size for recvfrom() */
     char *servIP;                           /* IP address of server */
-    struct PsstMailboxMessage *mailboxMessage;     /* Message to send to mailbox server */
-    char echoBuffer[ECHOMAX+1];             /* Buffer for receiving echoed string */
-    int echoStringLen;                      /* Length of string to echo */
-    int respStringLen;                      /* Length of received response */
-    
-    mailboxMessage = malloc(sizeof(mailboxMessage));
+    PsstMailboxMessage *mailboxMessage;     /* Message to send to mailbox server */
+
+    unsigned int receiver_id;
+    unsigned int user_id;
+    unsigned int public_key;
+    unsigned int private_key;
+
+    mailboxMessage = (PsstMailboxMessage*)malloc(sizeof(PsstMailboxMessage));
 
     if (argc != 2)    /* Test for correct number of arguments */
     {
@@ -44,6 +46,8 @@ int main(int argc, char *argv[])
         DieWithError("Invalid private key entered.");
     }
 
+    sscanf(prv_key, "%u", &private_key);
+
     char pub_key[100];
     printf("\nPlease enter a public key: ");
     if (fgets(pub_key, sizeof(pub_key), stdin) == NULL) 
@@ -51,15 +55,16 @@ int main(int argc, char *argv[])
         DieWithError("Invalid public key entered.");
     }
 
+    sscanf(pub_key, "%u", &public_key);
+
     char senderId[100];
     printf("\nPlease enter your ID: ");
     if (fgets(senderId, sizeof(senderId), stdin) == NULL) 
     {
         DieWithError("Invalid sender ID entered.");
     }
-
-    /* TODO, authenticate user ID */
-    printf("Authenticating...\n");
+    
+    sscanf(senderId, "%u", &user_id);
 
     char receiverId[100];
     printf("\nWho would you like to send to (ID)? ");
@@ -68,6 +73,8 @@ int main(int argc, char *argv[])
         DieWithError("Invalid receiver ID entered.");
     }
 
+    sscanf(receiverId, "%u", &receiver_id);
+
     char message[100];
     printf("\nPlease enter a message to send securely: ");
     if (fgets(message, sizeof(message), stdin) == NULL) 
@@ -75,9 +82,8 @@ int main(int argc, char *argv[])
         DieWithError("Invalid message entered.");
     }
     
-    printf("Initializing message buffer...\n");
+    printf("Encrypting message...\n");
     int buffer[sizeof(message)];
-
     int ret = encryptMessage(buffer, message, sizeof(buffer) / sizeof(buffer[0]));
 
     if (ret == 0) {
@@ -87,42 +93,55 @@ int main(int argc, char *argv[])
         printf("Failed to encrypt message due to buffer mismatch!\n");
     }
 
+    printf("Establishing connection with server: %s\n", servIP);
+
     /* Create a datagram/UDP socket */
     if ((sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
         DieWithError("socket() failed");
     
+    printf("Successfully established connection.\n");
+
     /* Construct the server address structure */
     memset(&echoServAddr, 0, sizeof(echoServAddr));    /* Zero out structure */
     echoServAddr.sin_family = AF_INET;                 /* Internet addr family */
     echoServAddr.sin_addr.s_addr = inet_addr(servIP);  /* Server IP address */
     echoServAddr.sin_port   = htons(echoServPort);     /* Server port */
     
-    /* Send the string to the server */
-    int sentBytes = sendto(sock, mailboxMessage, sizeof(mailboxMessage), 0, (struct sockaddr *) &echoServAddr, sizeof(echoServAddr));
-    if (sentBytes != sizeof(mailboxMessage))
+    printf("Registering public key...\n");
+    ret = registerAuth(user_id, public_key, sock, echoServAddr);
+    if (ret == 0)
     {
-        fprintf(stderr, "Expected %d but sent %d\n", (int)sizeof(mailboxMessage), sentBytes);
-        DieWithError("sendto() sent a different number of bytes than expected\n");
+        printf("Successfully registered public key.\n");
+    } else 
+    {
+        printf("Failed to register public key with statuscode: %i\n", ret);
     }
-    
-    /*
-    fromSize = sizeof(fromAddr);
-    if ((respStringLen = recvfrom(sock, echoBuffer, ECHOMAX, 0,
-         (struct sockaddr *) &fromAddr, &fromSize)) != echoStringLen)
-        DieWithError("recvfrom() failed");
-    */
 
-    if (echoServAddr.sin_addr.s_addr != fromAddr.sin_addr.s_addr)
-    {
-        fprintf(stderr,"Error: received a packet from unknown source.\n");
-        exit(1);
-    }
-    
-    /*
-    echoBuffer[respStringLen] = '\0';
-    printf("Received: %s\n", echoBuffer);
-    */
-    
+    free(mailboxMessage);
     close(sock);
     exit(0);
+}
+
+/**
+ * Registers a user on the public key (mailbox) server
+ * Returns an int where 0 represents success
+*/
+int registerAuth(unsigned int user_id, unsigned int public_key, int sock, struct sockaddr_in echoServAddr)
+{
+    PsstMailboxMessage* registerKeyMessage;
+    registerKeyMessage = (PsstMailboxMessage*)malloc(sizeof(PsstMailboxMessage));
+
+    registerKeyMessage->user_id = user_id;
+    registerKeyMessage->public_key = public_key;
+
+    /* Send the string to the server */
+    int sentBytes = sendto(sock, registerKeyMessage, sizeof(*registerKeyMessage), 0, (struct sockaddr *) &echoServAddr, sizeof(echoServAddr));
+    if (sentBytes != sizeof(*registerKeyMessage))
+    {
+        fprintf(stderr, "Expected %d but sent %d\n", (int)sizeof(*registerKeyMessage), sentBytes);
+        return -1;
+    }
+
+    free(registerKeyMessage);
+    return 0;
 }
