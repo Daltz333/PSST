@@ -37,7 +37,8 @@ typedef struct {
 
     unsigned int user_id;
     unsigned int public_key;
-} ConfirmPubMessage;
+    unsigned int err; /* Error response */
+} ConfirmLoginMessage;
 
 typedef struct {
     enum {register_key, request_key, response_auth, login, send_msg, retrieve_msg} message_type;

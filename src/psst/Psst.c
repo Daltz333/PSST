@@ -63,35 +63,8 @@ int main(int argc, char *argv[])
     {
         DieWithError("Invalid sender ID entered.");
     }
-    
+
     sscanf(senderId, "%u", &user_id);
-
-    char receiverId[100];
-    printf("\nWho would you like to send to (ID)? ");
-    if (fgets(receiverId, sizeof(receiverId), stdin) == NULL) 
-    {
-        DieWithError("Invalid receiver ID entered.");
-    }
-
-    sscanf(receiverId, "%u", &receiver_id);
-
-    char message[100];
-    printf("\nPlease enter a message to send securely: ");
-    if (fgets(message, sizeof(message), stdin) == NULL) 
-    {
-        DieWithError("Invalid message entered.");
-    }
-    
-    printf("Encrypting message...\n");
-    int buffer[sizeof(message)];
-    int ret = encryptMessage(buffer, message, sizeof(buffer) / sizeof(buffer[0]));
-
-    if (ret == 0) {
-        printf("Successfully encrypted message\n");
-        printf("Encrypted message: %s\n", message);
-    } else {
-        printf("Failed to encrypt message due to buffer mismatch!\n");
-    }
 
     printf("Establishing connection with server: %s\n", servIP);
 
@@ -108,13 +81,43 @@ int main(int argc, char *argv[])
     echoServAddr.sin_port   = htons(echoServPort);     /* Server port */
     
     printf("Registering public key...\n");
-    ret = registerAuth(user_id, public_key, sock, echoServAddr);
+    int ret = registerAuth(user_id, public_key, sock, echoServAddr);
     if (ret == 0)
     {
         printf("Successfully registered public key.\n");
     } else 
     {
         printf("Failed to register public key with statuscode: %i\n", ret);
+    }
+
+    for (;;) 
+    {
+        char receiverId[100];
+        printf("\nWho would you like to send to (ID)? ");
+        if (fgets(receiverId, sizeof(receiverId), stdin) == NULL) 
+        {
+            DieWithError("Invalid receiver ID entered.");
+        }
+
+        sscanf(receiverId, "%u", &receiver_id);
+
+        char message[100];
+        printf("\nPlease enter a message to send securely: ");
+        if (fgets(message, sizeof(message), stdin) == NULL) 
+        {
+            DieWithError("Invalid message entered.");
+        }
+        
+        printf("Encrypting message...\n");
+        int buffer[sizeof(message)];
+        ret = encryptMessage(buffer, message, sizeof(buffer) / sizeof(buffer[0]));
+
+        if (ret == 0) {
+            printf("Successfully encrypted message\n");
+            printf("Encrypted message: %s\n", message);
+        } else {
+            printf("Failed to encrypt message due to buffer mismatch!\n");
+        }
     }
 
     free(mailboxMessage);
@@ -131,6 +134,7 @@ int registerAuth(unsigned int user_id, unsigned int public_key, int sock, struct
     PsstMailboxMessage* registerKeyMessage;
     registerKeyMessage = (PsstMailboxMessage*)malloc(sizeof(PsstMailboxMessage));
 
+    registerKeyMessage->message_type = register_key;
     registerKeyMessage->user_id = user_id;
     registerKeyMessage->public_key = public_key;
 
@@ -143,5 +147,26 @@ int registerAuth(unsigned int user_id, unsigned int public_key, int sock, struct
     }
 
     free(registerKeyMessage);
-    return 0;
+
+    ConfirmLoginMessage* ack;
+    ack = (ConfirmLoginMessage*)malloc(sizeof(ConfirmLoginMessage));
+
+    unsigned int recLen = sizeof(echoServAddr);
+    /* Wait for ACK */
+    if(recvfrom(sock, ack, sizeof(*ack), 0,
+         (struct sockaddr*)&echoServAddr, &recLen) < 0){
+        DieWithError("Error while receiving server's msg");
+    }
+    
+    printf("Received statuscode from server: %i\n", ack->message_type);
+    
+    int ret = -1;
+    if (ack->message_type == ack_register_key) {
+        ret = ack->err;
+    } else {
+        ret = ack->message_type;
+    }
+
+    free(ack);
+    return ret;
 }

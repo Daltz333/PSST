@@ -6,8 +6,12 @@
 #include <unistd.h>     /* for close() */
 #include "../shared/DieWithError.h"
 #include "../shared/Messages.h"
+#include "Mailbox.h"
 
-#define ECHOMAX 255     /* Longest string to echo */
+#define PUBLIC_KEY_MAX 255 /* We can handle up to 255 clients */
+
+/* Represents the index of the next unused client in our client array */
+int client_iter = 0;
 
 int main(int argc, char *argv[])
 {
@@ -15,9 +19,9 @@ int main(int argc, char *argv[])
     struct sockaddr_in echoServAddr; /* Local address */
     struct sockaddr_in echoClntAddr; /* Client address */
     unsigned int cliAddrLen;         /* Length of incoming message */
-    char echoBuffer[ECHOMAX];        /* Buffer for echo string */
     unsigned short echoServPort;     /* Server port */
     int recvMsgSize;                 /* Size of received message */
+    PublicKeyItem keys[PUBLIC_KEY_MAX];
     PsstMailboxMessage* recMessage;
     
     recMessage = (PsstMailboxMessage*)malloc(sizeof(PsstMailboxMessage));
@@ -52,10 +56,80 @@ int main(int argc, char *argv[])
         
         printf("Handling client %s\n", inet_ntoa(echoClntAddr.sin_addr));
         printf("Sender ID is: %d\n", recMessage->user_id);
-        /* Send received datagram back to the client */
-        if (sendto(sock, echoBuffer, recvMsgSize, 0,
-                   (struct sockaddr *) &echoClntAddr, sizeof(echoClntAddr)) != recvMsgSize)
-            DieWithError("sendto() sent a different number of bytes than expected");
+        printf("Requested message is: %d\n", recMessage->message_type);
+        if (recMessage->message_type == register_key) 
+        {
+            printf("Client registering public key: %i\n", recMessage->public_key);
+
+            ConfirmLoginMessage* ack;
+            ack = (ConfirmLoginMessage*)malloc(sizeof(ConfirmLoginMessage));
+            
+            int ret = addPublicKey(recMessage->user_id, recMessage->public_key, keys);
+            if (ret == 0)
+            {
+                printf("Successfully registered public key.\n");
+                printf("CHECK: %i\n", getPublicKey(recMessage->user_id, keys));
+                ack->err = 0;
+            } else {
+                printf("Failed to register public key with statuscode: %i\n", ret);
+                ack->err = ret;
+            }
+            
+            ack->message_type = ack_register_key;
+            
+            printf("Sending ack_register_key...\n");
+            /* Send ACK back to the client */
+            if (sendto(sock, ack, sizeof(*ack), 0,
+                    (struct sockaddr *) &echoClntAddr, sizeof(echoClntAddr)) != sizeof(*ack))
+            {
+                DieWithError("sendto() sent a different number of bytes than expected");
+    
+                free(ack);
+            }
+
+            free(ack);
+        }
     }
-    /* NOT REACHED */
+}
+
+/* Retrieves a given user's public ID*/
+/* Returns -1 if user is not found */
+int getPublicKey(unsigned int user_id, PublicKeyItem* keys)
+{
+    PublicKeyItem key;
+    for (int i = 0; i < sizeof(*keys); ++i)
+    {
+        key = keys[i];
+        if (key.user_id == user_id) {
+            return key.public_key;
+        }
+    }
+
+    return -1;
+}
+
+/* Adds a given public key to keys */
+/* Returns 0 if success, -1 if max clients */
+/* -2 if key already exists */
+int addPublicKey(unsigned int user_id, unsigned int public_key, PublicKeyItem* keys) 
+{
+    /* Only add if the user doesn't already exist */
+    if (getPublicKey(user_id, keys) == -1) 
+    {
+        // Size check
+        if (sizeof(*keys) == PUBLIC_KEY_MAX) 
+        {
+            return -1;
+        } else {
+            keys[client_iter].user_id = user_id;
+            keys[client_iter].public_key = public_key;
+            
+            // Increment client iterator now that we have filled in a key
+            client_iter++;
+
+            return 0;
+        }
+    } else {
+        return -2;
+    }
 }
