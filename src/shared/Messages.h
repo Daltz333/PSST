@@ -17,7 +17,7 @@ typedef struct {
     enum {confirm_syh, push_syh} message_type;
 
     unsigned int user_id;
-} ConfirmAuthMessage;
+} PushNotif;
 
 /**
  * Represents a message from Mailbox to Client
@@ -49,4 +49,5 @@ typedef struct {
     unsigned int timestamp; /* Plaintext timestamp */
     unsigned long digital_dig; /* Timestamp encrypted with the sender's private key */
     unsigned long psst_msg[32]; /* Encrypted message, encrypted with the receiver's public key */
+    unsigned int err; /* Error response */
 } PsstMailboxMessage;

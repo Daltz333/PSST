@@ -59,15 +59,6 @@ int main(int argc, char *argv[])
 
     char senderId[100];
 
-    int time = getTimestamp();
-    printf("Unencrypted time:  %i\n", time);
-
-    long long int encryptedTime = encrypt(time, private_key);
-    printf("Encrypted time: %lli\n", encryptedTime);
-
-    long long int decryptedTime = decrypt(encryptedTime, public_key);
-    printf("Descrypted time: %lli\n", decryptedTime);
-
     printf("\nPlease enter your ID: ");
     if (fgets(senderId, sizeof(senderId), stdin) == NULL) 
     {
@@ -99,6 +90,8 @@ int main(int argc, char *argv[])
     {
         printf("Failed to register public key with statuscode: %i\n", ret);
     }
+
+    printf("Logging in...\n");
 
     for (;;) 
     {

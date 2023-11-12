@@ -6,6 +6,7 @@
 #include <unistd.h>     /* for close() */
 #include "../shared/DieWithError.h"
 #include "../shared/Messages.h"
+#include "../shared/ServerConstants.h"
 #include "Mailbox.h"
 
 #define PUBLIC_KEY_MAX 255 /* We can handle up to 255 clients */
@@ -19,14 +20,12 @@ int main(int argc, char *argv[])
     struct sockaddr_in echoServAddr; /* Local address */
     struct sockaddr_in echoClntAddr; /* Client address */
     unsigned int cliAddrLen;         /* Length of incoming message */
-    unsigned short echoServPort;     /* Server port */
+    unsigned short echoServPort = MAILBOX_SERVER_PORT;     /* Server port */
     int recvMsgSize;                 /* Size of received message */
     PublicKeyItem keys[PUBLIC_KEY_MAX];
     PsstMailboxMessage* recMessage;
     
     recMessage = (PsstMailboxMessage*)malloc(sizeof(PsstMailboxMessage));
-
-    echoServPort = 8000;
 
     /* Create socket for sending/receiving datagrams */
     if ((sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
@@ -88,6 +87,9 @@ int main(int argc, char *argv[])
             }
 
             free(ack);
+        } else if (recMessage->message_type == login)
+        {
+            int pub_key = getPublicKey(recMessage->user_id, keys);
         }
     }
 }
