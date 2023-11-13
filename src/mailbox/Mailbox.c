@@ -7,6 +7,7 @@
 #include "../shared/DieWithError.h"
 #include "../shared/Messages.h"
 #include "../shared/ServerConstants.h"
+#include "../shared/MessageUtil.h"
 #include "Mailbox.h"
 
 #define PUBLIC_KEY_MAX 255 /* We can handle up to 255 clients */
@@ -22,10 +23,24 @@ int main(int argc, char *argv[])
     unsigned int cliAddrLen;         /* Length of incoming message */
     unsigned short echoServPort = MAILBOX_SERVER_PORT;     /* Server port */
     int recvMsgSize;                 /* Size of received message */
+    char* servIP;
     PublicKeyItem keys[PUBLIC_KEY_MAX];
     PsstMailboxMessage* recMessage;
+
+    struct sockaddr_in authServerAddr; /* Auth server address */
+    unsigned short authServerPort = AUTH_SERVER_PORT; /* Auth server port */
     
     recMessage = (PsstMailboxMessage*)malloc(sizeof(PsstMailboxMessage));
+
+    if (argc != 2)    /* Test for correct number of arguments */
+    {
+        fprintf(stderr,"Usage: %s <Auth Server IP>\n", argv[0]);
+        exit(1);
+    }
+    
+    printf("num args %d\n", argc);
+    
+    servIP = argv[1]; /* First arg: server IP address (dotted quad) */
 
     /* Create socket for sending/receiving datagrams */
     if ((sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
@@ -37,6 +52,12 @@ int main(int argc, char *argv[])
     echoServAddr.sin_addr.s_addr = htonl(INADDR_ANY); /* Any incoming interface */
     echoServAddr.sin_port = htons(echoServPort);      /* Local port */
     
+    /* Construct the auth server address structure */
+    memset(&authServerAddr, 0, sizeof(authServerAddr));    /* Zero out structure */
+    authServerAddr.sin_family = AF_INET;                 /* Internet addr family */
+    authServerAddr.sin_addr.s_addr = inet_addr(servIP);  /* Server IP address */
+    authServerAddr.sin_port = htons(authServerPort);     /* Server port */
+
     /* Bind to the local address */
     if (bind(sock, (struct sockaddr *) &echoServAddr, sizeof(echoServAddr)) < 0)
         DieWithError("bind() failed");
@@ -55,7 +76,7 @@ int main(int argc, char *argv[])
         
         printf("Handling client %s\n", inet_ntoa(echoClntAddr.sin_addr));
         printf("Sender ID is: %d\n", recMessage->user_id);
-        printf("Requested message is: %d\n", recMessage->message_type);
+        printf("Requested action is %i\n", recMessage->message_type);
         if (recMessage->message_type == register_key) 
         {
             printf("Client registering public key: %i\n", recMessage->public_key);
@@ -90,6 +111,37 @@ int main(int argc, char *argv[])
         } else if (recMessage->message_type == login)
         {
             int pub_key = getPublicKey(recMessage->user_id, keys);
+            int decryptedTimestamp = decrypt(recMessage->digital_dig, pub_key);
+
+            AuthMessage* authMessage;
+            authMessage = (AuthMessage*)malloc(sizeof(AuthMessage));
+            authMessage->digital_sig = recMessage->digital_dig;
+            authMessage->timestamp = recMessage->timestamp;
+            authMessage->user_id = recMessage->user_id;
+            authMessage->message_type = request_auth;
+
+            /* If the decrypted and plaintext timestamp match, proceed to 2FA */
+            if (decryptedTimestamp == recMessage->timestamp)
+            {
+                printf("Sender credentials validated successfully, sending request_auth to SYH server...\n");
+
+                /* Send auth request to auth server */
+                if (sendto(sock, authMessage, sizeof(*authMessage), 0,
+                        (struct sockaddr *) &authServerAddr, sizeof(authServerAddr)) != sizeof(*authMessage))
+                {
+                    DieWithError("sendto() sent a different number of bytes than expected\n");
+                }
+            } else {
+                printf("Sender credentials were invalid, provided timestamp was %i but decrypted sig was %i\n", recMessage->timestamp, decryptedTimestamp);
+            }
+
+            free(authMessage);
+        } else if (recMessage->message_type == response_auth)
+        {
+            
+        } else 
+        {
+            printf("Unhandled message type received: %i", recMessage->message_type);
         }
     }
 }

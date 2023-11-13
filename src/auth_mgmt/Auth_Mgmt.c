@@ -26,7 +26,7 @@ int main(int argc, char *argv[])
 
     if (argc != 2)    /* Test for correct number of arguments */
     {
-        fprintf(stderr,"Usage: %s <Server IP>\n", argv[0]);
+        fprintf(stderr,"Usage: %s <Mailbox Server IP>\n", argv[0]);
         exit(1);
     }
     
@@ -76,36 +76,29 @@ int main(int argc, char *argv[])
         /* */
         if (authMessage->message_type == register_syh) 
         {
+            printf("New client has been attached.\n");
+            
             /* Auth client attached, store */
             authClntAddr = echoClntAddr;
             hasClientConnected = 1;
 
-            /* Construct message telling mailbox server there is no client connected */
-            PsstMailboxMessage* mailboxMsg;
-            mailboxMsg = (PsstMailboxMessage*)malloc(sizeof(PsstMailboxMessage));
-            mailboxMsg->message_type = request_key;
+            printf("Sending positive ACK\n");
+            ConfirmLoginMessage* ackRegister;
+            ackRegister = (ConfirmLoginMessage*)malloc(sizeof(ConfirmLoginMessage));
 
-            /* Send public key request to mailbox */
-            if (sendto(sock, mailboxMsg, sizeof(*mailboxMsg), 0,
-                (struct sockaddr *) &mailboxServAddr, sizeof(mailboxServAddr)) != sizeof(*mailboxMsg))
+            ackRegister->err = 0;
+            ackRegister->message_type = ack_register_key;
+
+            printf("Sending login ack to auth client...\n");
+            /* Send ack response */
+            if (sendto(sock, ackRegister, sizeof(*ackRegister), 0,
+                (struct sockaddr *) &echoClntAddr, sizeof(echoClntAddr)) != sizeof(*ackRegister))
             {
                 printf("Failed to send request_key to mailbox.");
             }
+            printf("Successfully sent login ack to auth client...\n");
 
-            ConfirmLoginMessage* publicKeyMsg;
-            publicKeyMsg = (ConfirmLoginMessage*)malloc(sizeof(ConfirmLoginMessage));
-            publicKeyMsg->message_type = response_public_key;
-
-            /* Wait for public key response */
-            if ((recvMsgSize = recvfrom(sock, publicKeyMsg, sizeof(*publicKeyMsg), 0,
-                                    (struct sockaddr *) &echoClntAddr, &cliAddrLen)) < 0)
-                DieWithError("recvfrom() failed");
-
-            printf("Received public key: %i\n", publicKeyMsg->public_key);
-
-            
-            free(publicKeyMsg);
-            free(mailboxMsg);
+            free(ackRegister);
         /* Send push notification to client */
         } else if (authMessage->message_type == request_auth)
         {
@@ -115,6 +108,8 @@ int main(int argc, char *argv[])
             
             if (hasClientConnected == 1)
             {
+                printf("Sending push notification to client...\n");
+
                 /* send push_syh to client, telling them mailbox has requested authentication */
                 if (sendto(sock, pushMsg, sizeof(*pushMsg), 0,
                         (struct sockaddr *) &authClntAddr, sizeof(authClntAddr)) != sizeof(*pushMsg))
@@ -123,6 +118,8 @@ int main(int argc, char *argv[])
                 }
             } else 
             {
+                printf("No client detected, sending negative ACK\n");
+
                 /* Construct message telling mailbox server there is no client connected */
                 PsstMailboxMessage* mailboxMsg;
                 mailboxMsg = (PsstMailboxMessage*)malloc(sizeof(PsstMailboxMessage));
@@ -141,6 +138,8 @@ int main(int argc, char *argv[])
             free(pushMsg);
         } else if (authMessage->message_type == ack_push_syh)
         {
+            printf("Successfully received ACK from syh client, sending auth success to mailbox...\n");
+            
             /* Construct message telling mailbox server there is no client connected */
             PsstMailboxMessage* mailboxMsg;
             mailboxMsg = (PsstMailboxMessage*)malloc(sizeof(PsstMailboxMessage));
@@ -148,7 +147,7 @@ int main(int argc, char *argv[])
             mailboxMsg->err = 0;
 
             if (sendto(sock, mailboxMsg, sizeof(*mailboxMsg), 0,
-                (struct sockaddr *) &echoClntAddr, sizeof(echoClntAddr)) != sizeof(*mailboxMsg))
+                (struct sockaddr *) &mailboxServAddr, sizeof(mailboxServAddr)) != sizeof(*mailboxMsg))
             {
                 printf("Failed to send OK ACK to mailbox.");
             }

@@ -57,8 +57,11 @@ int main(int argc, char *argv[])
 
     printf("Generated private key: %i\n", private_key);
 
+    /* Create a datagram/UDP socket */
+    if ((sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
+        DieWithError("socket() failed");
+    
     char senderId[100];
-
     printf("\nPlease enter your ID: ");
     if (fgets(senderId, sizeof(senderId), stdin) == NULL) 
     {
@@ -66,21 +69,13 @@ int main(int argc, char *argv[])
     }
 
     sscanf(senderId, "%u", &user_id);
-
-    printf("Establishing connection with server: %s\n", servIP);
-
-    /* Create a datagram/UDP socket */
-    if ((sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
-        DieWithError("socket() failed");
     
-    printf("Successfully established connection.\n");
-
     /* Construct the server address structure */
     memset(&echoServAddr, 0, sizeof(echoServAddr));    /* Zero out structure */
     echoServAddr.sin_family = AF_INET;                 /* Internet addr family */
     echoServAddr.sin_addr.s_addr = inet_addr(servIP);  /* Server IP address */
     echoServAddr.sin_port   = htons(echoServPort);     /* Server port */
-    
+
     printf("Registering public key...\n");
     int ret = registerAuth(user_id, public_key, sock, echoServAddr);
     if (ret == 0)
@@ -88,10 +83,11 @@ int main(int argc, char *argv[])
         printf("Successfully registered public key.\n");
     } else 
     {
-        printf("Failed to register public key with statuscode: %i\n", ret);
+        DieWithError("Failed to register public key");
     }
 
     printf("Logging in...\n");
+    login_user(user_id, private_key, sock, echoServAddr);
 
     for (;;) 
     {
@@ -126,6 +122,58 @@ int main(int argc, char *argv[])
     free(mailboxMessage);
     close(sock);
     exit(0);
+}
+
+/* Sends and waits for a successful login to the mailbox server */
+/* Returns an int that represents an error code */
+int login_user(unsigned int user_id, unsigned int private_key, int sock, struct sockaddr_in echoServAddr)
+{
+    PsstMailboxMessage* registerKeyMessage;
+    registerKeyMessage = (PsstMailboxMessage*)malloc(sizeof(PsstMailboxMessage));
+
+    registerKeyMessage->message_type = login;
+    registerKeyMessage->user_id = user_id;
+    registerKeyMessage->public_key = 0;
+    
+    int timestamp = getTimestamp();
+    registerKeyMessage->timestamp = timestamp;
+    registerKeyMessage->digital_dig = encrypt(timestamp, private_key);
+    
+    printf("Sending login request to mailbox...\n");
+    
+    /* Send the request to the server */
+    int sentBytes = sendto(sock, registerKeyMessage, sizeof(*registerKeyMessage), 0, (struct sockaddr *) &echoServAddr, sizeof(echoServAddr));
+    if (sentBytes != sizeof(*registerKeyMessage))
+    {
+        fprintf(stderr, "Expected %d but sent %d\n", (int)sizeof(*registerKeyMessage), sentBytes);
+        return -1;
+    }
+
+    free(registerKeyMessage);
+
+    ConfirmLoginMessage* ack;
+    ack = (ConfirmLoginMessage*)malloc(sizeof(ConfirmLoginMessage));
+
+    unsigned int recLen = sizeof(echoServAddr);
+
+    printf("Waiting for mailbox server to confirm successful login...\n");
+    /* Wait for ACK */
+    if(recvfrom(sock, ack, sizeof(*ack), 0,
+         (struct sockaddr*)&echoServAddr, &recLen) < 0){
+        DieWithError("Error while receiving server's msg");
+    }
+    
+    printf("Received statuscode from server: %i\n", ack->message_type);
+    
+    int ret = -1;
+    if (ack->message_type == ack_register_key) {
+        ret = ack->err;
+    } else {
+        ret = ack->message_type;
+    }
+
+    free(ack);
+    return ret;
 }
 
 /**

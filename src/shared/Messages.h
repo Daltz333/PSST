@@ -3,7 +3,7 @@
  * 
 */
 typedef struct {
-    enum {register_syh, ack_reg, syh, ack_push_syh, request_auth} message_type;
+    enum {register_syh, ack_reg, syh, ack_push_syh, request_auth, neg_ack_push_syh} message_type;
 
     unsigned int user_id;
     unsigned long timestamp;

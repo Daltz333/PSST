@@ -37,7 +37,8 @@ int encryptMessage(int* buffer, char* msg, size_t bufferSize) {
 }
 
 /** 
- * Returns timestamp in years since epoch 
+ * Returns timestamp in years since epoch
+ * We are using years, because our modfun fails on extremely large values
 */
 int getTimestamp()
 {
